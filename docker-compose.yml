@@ -1,0 +1,17 @@
+services:
+  database:
+    container_name: sms_database
+    image: postgres:17.5
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=lahiru
+      - POSTGRES_PASSWORD=lahiru
+      - POSTGRES_DB=school_db
+    ports:
+      - 5433:5432
+    volumes:
+      - db:/var/lib/postgresql/data 
+      - ./scripts:/docker-entrypoint-initdb.d
+
+volumes:
+  db:
