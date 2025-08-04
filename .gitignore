@@ -1,0 +1,6 @@
+# Module cache
+/go.sum
+
+# Environment variables
+.env
+.test.env
