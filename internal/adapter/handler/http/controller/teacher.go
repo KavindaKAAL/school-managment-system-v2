@@ -37,50 +37,41 @@ func (c *teacherController) MountRoutes(group *gin.RouterGroup) {
 
 func (c *teacherController) getTeachers(ctx *gin.Context) {
 
-	msg, err := c.service.GetAllTeacherService()
+	teachers, err := c.service.GetAllTeacherService()
 
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Internel error"})
 		return
 	}
+	res := teacher.NewTeachersListResDto(teachers)
 
-	ctx.IndentedJSON(http.StatusOK, msg)
-
-	// mongoId, err := network.ReqParams(ctx, coredto.EmptyMongoId())
-	// if err != nil {
-	// 	c.Send(ctx).BadRequestError(err.Error(), err)
-	// 	return
-	// }
-
-	// data, err := c.service.GetUserPublicProfile(mongoId.ID)
-	// if err != nil {
-	// 	c.Send(ctx).MixedError(err)
-	// 	return
-	// }
-
-	// c.Send(ctx).SuccessDataResponse("success", data)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *teacherController) getTeacherByEmail(ctx *gin.Context) {
 
-	d, err := network.ReqParams(ctx, teacher.EmptyGetTeacherReqDto())
+	dto, err := network.ReqParams(ctx, teacher.EmptyGetTeacherReqDto())
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request param"})
 		return
 	}
 
-	student, err := c.service.GetTeacherByEmailService(d.Email)
+	teacherRes, err := c.service.GetTeacherByEmailService(dto.Email)
 	if err != nil {
-		ctx.IndentedJSON(http.StatusInternalServerError, err)
+		if errors.Is(err, repository.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Teacher is not found"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, err)
 		return
 	}
-	ctx.IndentedJSON(http.StatusOK, student)
-	// c.Send(ctx).SuccessDataResponse("success", data)
+
+	res := teacher.NewTeacherResDto(teacherRes)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *teacherController) createTeacher(ctx *gin.Context) {
-	dto, _ := network.ReqBody(ctx, teacher.EmptyCreateTeacherDto())
-	newTeacher, err := domain.NewTeacher(dto.Name, dto.Email)
+	dto, err := network.ReqBody(ctx, teacher.EmptyCreateTeacherDto())
 
 	if err != nil {
 		var syntaxError *json.SyntaxError
@@ -94,6 +85,13 @@ func (c *teacherController) createTeacher(ctx *gin.Context) {
 		default:
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		}
+		return
+	}
+
+	newTeacher, err2 := domain.NewTeacher(dto.Name, dto.Email)
+
+	if err2 != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
 	err = c.service.CreateTeacherService(newTeacher)
@@ -112,75 +110,52 @@ func (c *teacherController) createTeacher(ctx *gin.Context) {
 
 }
 
-// Call BindJSON to bind the received JSON to
-// newAlbum.
-// 	var newAlbum album
-
-// 	if err := ctx.BindJSON(&newAlbum); err != nil {
-// 		ctx.IndentedJSON(http.StatusCreated, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	// Add the new album to the slice.
-// 	albums = append(albums, newAlbum)
-// 	fmt.Println(albums)
-
-// 	ctx.IndentedJSON(http.StatusCreated, albums)
-// }
-
 func (c *teacherController) updateTeacher(ctx *gin.Context) {
-	fmt.Println("lahiru test 4")
-	body, err := network.ReqBody(ctx, teacher.EmptyUpdateTeacherDto())
+	dto, err := network.ReqBody(ctx, teacher.EmptyUpdateTeacherDto())
 
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	updateTeacher, err2 := domain.NewTeacher(body.Name, body.Email)
+	updateTeacher, err2 := domain.NewTeacher(dto.Name, dto.Email)
 
 	if err2 != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
 
-	msg, err3 := c.service.UpdateTeacherService(updateTeacher)
+	err3 := c.service.UpdateTeacherService(updateTeacher)
 
 	if err3 != nil {
-		ctx.IndentedJSON(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
 
-	ctx.IndentedJSON(http.StatusOK, msg)
+	ctx.JSON(http.StatusOK, gin.H{"message": "Successfully updated"})
 
-	// mongoId, err := network.ReqParams(ctx, coredto.EmptyMongoId())
-	// if err != nil {
-	// 	c.Send(ctx).BadRequestError(err.Error(), err)
-	// 	return
-	// }
-
-	// data, err := c.service.GetUserPublicProfile(mongoId.ID)
-	// if err != nil {
-	// 	c.Send(ctx).MixedError(err)
-	// 	return
-	// }
-
-	// c.Send(ctx).SuccessDataResponse("success", data)
 }
 
 func (c *teacherController) deleteTeacher(ctx *gin.Context) {
 
-	d, err := network.ReqParams(ctx, teacher.EmptyGetTeacherReqDto())
+	dto, err := network.ReqParams(ctx, teacher.EmptyGetTeacherReqDto())
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, "Invalid request param")
 		return
 	}
 
-	_, err2 := c.service.DeleteTeacherByEmailService(d.Email)
+	err2 := c.service.DeleteTeacherByEmailService(dto.Email)
 	if err2 != nil {
-		ctx.IndentedJSON(http.StatusInternalServerError, err2)
+		if errors.Is(err2, repository.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Teacher is not found"})
+			return
+		} else if errors.Is(err2, repository.ErrUserAssignedToSomeClasses) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": "Cannot delete the teacher, is still assigned to classes"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
-	ctx.IndentedJSON(200, "Successfully deleted")
+	ctx.JSON(http.StatusOK, gin.H{"message": "Successfully deleted"})
 
 }

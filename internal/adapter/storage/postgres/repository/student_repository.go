@@ -14,6 +14,7 @@ var ErrStudentAlreadyEnrolled = errors.New("student is already enrolled in the c
 var ErrStudentNotEnrolled = errors.New("student is not enrolled in the class")
 var ErrEmailAlreadyInUse = errors.New("email is already use")
 var ErrUserNotFound = errors.New("user not found")
+var ErrUserEnrolledToSomeClasses = errors.New("user still enrolled to classes")
 
 type StudentRepository struct {
 	database postgres.Database
@@ -28,7 +29,7 @@ func NewStudentRepository(db postgres.Database) *StudentRepository {
 func (s *StudentRepository) GetAllStudent() ([]*domain.Student, error) {
 	var studentsPostgres []*model.StudentModel
 
-	err := s.database.GetInstance().Preload("Classes.Teacher").Find(&studentsPostgres).Error
+	err := s.database.GetInstance().Preload("Classes").Find(&studentsPostgres).Error
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +41,7 @@ func (s *StudentRepository) GetAllStudent() ([]*domain.Student, error) {
 func (s *StudentRepository) GetStudentByEmail(email string) (*domain.Student, error) {
 	var studentPs *model.StudentModel
 
-	err := s.database.GetInstance().Preload("Classes.Teacher").First(&studentPs, "email = ?", email).Error
+	err := s.database.GetInstance().Preload("Classes").First(&studentPs, "email = ?", email).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, ErrUserNotFound
@@ -74,30 +75,28 @@ func (s *StudentRepository) CreateStudent(student *domain.Student) error {
 	return err
 }
 
-func (s *StudentRepository) UpdateStudent(student *domain.Student) (*domain.Student, error) {
+func (s *StudentRepository) UpdateStudent(student *domain.Student) error {
 
 	var updateStudentPs *model.StudentModel
 	err := s.database.GetInstance().First(&updateStudentPs, "email = ?", student.Email).Error
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 	updateStudentPs.Name = student.Name
 
-	err2 := s.database.GetInstance().Save(&updateStudentPs).Error
-	if err2 != nil {
-		return nil, err2
-	}
-
-	studentDomain := mapper.ToDomainStudent(updateStudentPs)
-	return studentDomain, nil
+	return s.database.GetInstance().Save(&updateStudentPs).Error
 }
 
 func (s *StudentRepository) DeleteStudentByEmail(email string) error {
 
 	var studentPs model.StudentModel
 
-	if err := s.database.GetInstance().First(&studentPs, "email = ?", email).Error; err == nil {
+	if err := s.database.GetInstance().Preload("Classes").First(&studentPs, "email = ?", email).Error; err == nil {
+		count := len(studentPs.Classes)
+		if count > 0 {
+			return ErrUserEnrolledToSomeClasses
+		}
 		return s.database.GetInstance().Unscoped().Delete(&studentPs).Error
 	} else {
 		if err == gorm.ErrRecordNotFound {

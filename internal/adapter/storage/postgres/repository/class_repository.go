@@ -10,6 +10,10 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrClassNameAlreadyInUse = errors.New("class name is already in use")
+var ErrTeacherAlreadyAssigned = errors.New("teacher is already assigned in the class")
+var ErrTeacherNotAssigned = errors.New("teacher is not assigned in the class")
+
 type ClassRepository struct {
 	database postgres.Database
 }
@@ -19,9 +23,6 @@ func NewClassRepository(db postgres.Database) *ClassRepository {
 		db,
 	}
 }
-
-var ErrTeacherAlreadyAssigned = errors.New("teacher is already assigned in the class")
-var ErrTeacherNotAssigned = errors.New("teacher is not assigned in the class")
 
 func (s *ClassRepository) GetAllClasses() ([]*domain.Class, error) {
 	var classesPs []*model.ClassModel
@@ -37,60 +38,59 @@ func (s *ClassRepository) GetAllClasses() ([]*domain.Class, error) {
 func (s *ClassRepository) GetClassByName(className string) (*domain.Class, error) {
 	var classPs *model.ClassModel
 
-	err := s.database.GetInstance().Preload("Students").First(&classPs, "name = ?", className).Error
+	err := s.database.GetInstance().Preload("Students").Preload("Teacher").First(&classPs, "name = ?", className).Error
 	if err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrUserNotFound
+		} else {
+			return nil, err
+		}
 	}
 
 	classDomain := mapper.ToDomainClass(classPs)
 	return classDomain, nil
 }
 
-func (s *ClassRepository) CreateClass(class *domain.Class) (*domain.Class, error) {
+func (s *ClassRepository) CreateClass(class *domain.Class) error {
+
+	var existingClassPs *model.ClassModel
+	if err := s.database.GetInstance().First(&existingClassPs, "name = ?", class.Name).Error; err == nil {
+		return ErrClassNameAlreadyInUse
+	} else if err != gorm.ErrRecordNotFound {
+		return err
+	}
 
 	classPs := mapper.FromDomainClass(class)
 
 	err := s.database.GetInstance().Create(&classPs).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return class, nil
+	return err
 }
 
-func (s *ClassRepository) UpdateClass(class *domain.Class) (*domain.Class, error) {
+func (s *ClassRepository) UpdateClass(class *domain.Class) error {
 	var updateClassPs model.ClassModel
 	err := s.database.GetInstance().First(&updateClassPs, "name = ?", class.Name).Error
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 	updateClassPs.Subject = class.Subject
 
-	err2 := s.database.GetInstance().Save(&updateClassPs).Error
-	if err2 != nil {
-		return nil, err2
-	}
-
-	classDomain := mapper.ToDomainClass(&updateClassPs)
-	return classDomain, nil
+	return s.database.GetInstance().Save(&updateClassPs).Error
 }
 
-func (s *ClassRepository) DeleteClassByName(className string) (bool, error) {
+func (s *ClassRepository) DeleteClassByName(className string) error {
 	var classPs model.ClassModel
 	err := s.database.GetInstance().First(&classPs, "name = ?", className).Error
 
 	if err != nil {
-		return false, err
+		if err == gorm.ErrRecordNotFound {
+			return ErrUserNotFound
+		} else {
+			return err
+		}
 	}
 
-	err2 := s.database.GetInstance().Unscoped().Delete(&classPs).Error
-
-	if err2 != nil {
-		return false, err2
-	}
-
-	return true, nil
+	return s.database.GetInstance().Unscoped().Delete(&classPs).Error
 }
 
 func (s *ClassRepository) AssignTeacher(className string, teacherEmail string) error {

@@ -1,12 +1,16 @@
 package repository
 
 import (
+	"errors"
+
 	"github.com/KavindaKAAL/school-management-system-v2/internal/adapter/storage/postgres"
 	"github.com/KavindaKAAL/school-management-system-v2/internal/adapter/storage/postgres/repository/mapper"
 	"github.com/KavindaKAAL/school-management-system-v2/internal/adapter/storage/postgres/repository/model"
 	"github.com/KavindaKAAL/school-management-system-v2/internal/core/domain"
 	"gorm.io/gorm"
 )
+
+var ErrUserAssignedToSomeClasses = errors.New("user still assigned to classes")
 
 type TeacherRepository struct {
 	database postgres.Database
@@ -29,13 +33,18 @@ func (s *TeacherRepository) GetAllTeachers() ([]*domain.Teacher, error) {
 	return teachersDomain, nil
 }
 
-func (s *TeacherRepository) GetTeacherByEmail(teacherEmail string) (*domain.Teacher, error) {
+func (s *TeacherRepository) GetTeacherByEmail(email string) (*domain.Teacher, error) {
 	var teacherPs *model.TeacherModel
 
-	err := s.database.GetInstance().Preload("Classes").First(&teacherPs, "email = ?", teacherEmail).Error
+	err := s.database.GetInstance().Preload("Classes").First(&teacherPs, "email = ?", email).Error
 	if err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrUserNotFound
+		} else {
+			return nil, err
+		}
 	}
+
 	teacherDomain := mapper.ToDomainTeacher(teacherPs)
 	return teacherDomain, nil
 }
@@ -66,36 +75,33 @@ func (s *TeacherRepository) CreateTeacher(teacher *domain.Teacher) error {
 	return nil
 }
 
-func (s *TeacherRepository) UpdateTeacher(teacher *domain.Teacher) (*domain.Teacher, error) {
+func (s *TeacherRepository) UpdateTeacher(teacher *domain.Teacher) error {
 	var updateTeacherPs model.TeacherModel
 	err := s.database.GetInstance().First(&updateTeacherPs, "email = ?", teacher.Email).Error
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 	updateTeacherPs.Name = teacher.Name
-	err2 := s.database.GetInstance().Save(&updateTeacherPs).Error
-	if err2 != nil {
-		return nil, err2
-	}
+	return s.database.GetInstance().Save(&updateTeacherPs).Error
 
-	teacherDomain := mapper.ToDomainTeacher(&updateTeacherPs)
-	return teacherDomain, nil
 }
 
-func (s *TeacherRepository) DeleteTeacherByEmail(teacherEmail string) (bool, error) {
+func (s *TeacherRepository) DeleteTeacherByEmail(email string) error {
 	var teacherPs model.TeacherModel
-	err := s.database.GetInstance().First(&teacherPs, "email = ?", teacherEmail).Error
 
-	if err != nil {
-		return false, err
+	if err := s.database.GetInstance().Preload("Classes").First(&teacherPs, "email = ?", email).Error; err == nil {
+		count := len(teacherPs.Classes)
+		if count > 0 {
+			return ErrUserAssignedToSomeClasses
+		}
+		return s.database.GetInstance().Unscoped().Delete(&teacherPs).Error
+	} else {
+		if err == gorm.ErrRecordNotFound {
+			return ErrUserNotFound
+		} else {
+			return err
+		}
 	}
 
-	err2 := s.database.GetInstance().Unscoped().Delete(&teacherPs).Error
-
-	if err2 != nil {
-		return false, err2
-	}
-
-	return true, nil
 }

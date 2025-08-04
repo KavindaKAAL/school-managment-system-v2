@@ -8,14 +8,14 @@ type TeacherRepository interface {
 	GetAllTeachers() ([]*domain.Teacher, error)
 	GetTeacherByEmail(email string) (*domain.Teacher, error)
 	CreateTeacher(teacher *domain.Teacher) error
-	UpdateTeacher(teacher *domain.Teacher) (*domain.Teacher, error)
-	DeleteTeacherByEmail(email string) (bool, error)
+	UpdateTeacher(teacher *domain.Teacher) error
+	DeleteTeacherByEmail(email string) error
 }
 
 type TeacherService interface {
 	GetAllTeacherService() ([]*domain.Teacher, error)
 	GetTeacherByEmailService(email string) (*domain.Teacher, error)
 	CreateTeacherService(teacher *domain.Teacher) error
-	UpdateTeacherService(teacher *domain.Teacher) (*domain.Teacher, error)
-	DeleteTeacherByEmailService(email string) (bool, error)
+	UpdateTeacherService(teacher *domain.Teacher) error
+	DeleteTeacherByEmailService(email string) error
 }

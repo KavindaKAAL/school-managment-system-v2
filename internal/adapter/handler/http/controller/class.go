@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -38,144 +39,126 @@ func (c *classController) MountRoutes(group *gin.RouterGroup) {
 }
 
 func (c *classController) getClasses(ctx *gin.Context) {
-	msg, err := c.service.GetAllClassService()
+	classes, err := c.service.GetAllClassService()
 
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
+	res := class.NewClassesListResDto(classes)
 
-	ctx.IndentedJSON(http.StatusOK, msg)
+	ctx.JSON(http.StatusOK, res)
 
-	// mongoId, err := network.ReqParams(ctx, coredto.EmptyMongoId())
-	// if err != nil {
-	// 	c.Send(ctx).BadRequestError(err.Error(), err)
-	// 	return
-	// }
-
-	// data, err := c.service.GetUserPublicProfile(mongoId.ID)
-	// if err != nil {
-	// 	c.Send(ctx).MixedError(err)
-	// 	return
-	// }
-
-	// c.Send(ctx).SuccessDataResponse("success", data)
 }
 
 func (c *classController) getClassByName(ctx *gin.Context) {
 
-	d, err := network.ReqParams(ctx, class.EmptyGetClassReqDto())
+	dto, err := network.ReqParams(ctx, class.EmptyGetClassReqDto())
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid request param"})
 		return
 	}
 
-	student, err := c.service.GetClassByNameService(d.Name)
+	classRes, err := c.service.GetClassByNameService(dto.Name)
 	if err != nil {
-		ctx.IndentedJSON(http.StatusInternalServerError, err)
+		if errors.Is(err, repository.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Class is not found"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, err)
 		return
 	}
-	ctx.IndentedJSON(http.StatusOK, student)
-	// c.Send(ctx).SuccessDataResponse("success", data)
+
+	res := class.NewClassResDto(classRes)
+
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *classController) createClass(ctx *gin.Context) {
-	body, _ := network.ReqBody(ctx, class.EmptyCreateClassDto())
-	student, err := domain.NewClass(body.Name, body.Name)
-	fmt.Println("test100", student)
+
+	dto, err := network.ReqBody(ctx, class.EmptyCreateClassDto())
 
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		var syntaxError *json.SyntaxError
+		var unmarshalTypeError *json.UnmarshalTypeError
+
+		switch {
+		case errors.As(err, &syntaxError):
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Malformed JSON: Syntax error"})
+		case errors.As(err, &unmarshalTypeError):
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid type for field %s", unmarshalTypeError.Field)})
+		default:
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		}
 		return
 	}
 
-	msg, _ := c.service.CreateClassService(student)
-	ctx.IndentedJSON(http.StatusCreated, msg)
-	// if err != nil {
-	// 	c.Send(ctx).InternalServerError("something went wrong", err)
-	// 	return
-	// }
+	newClass, err2 := domain.NewClass(dto.Name, dto.Subject)
 
-	// data, err := utils.MapTo[dto.InfoMessage](msg)
-	// if err != nil {
-	// 	c.Send(ctx).InternalServerError("something went wrong", err)
-	// 	return
-	// }
+	if err2 != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
+		return
+	}
 
-	// c.Send(ctx).SuccessDataResponse("message received successfully!", data)
+	err2 = c.service.CreateClassService(newClass)
+
+	if err2 != nil {
+		if errors.Is(err2, repository.ErrClassNameAlreadyInUse) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": "Class name is already used"})
+		} else {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
+		}
+
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, gin.H{"message": "Successfully created"})
+
 }
 
-// Call BindJSON to bind the received JSON to
-// newAlbum.
-// 	var newAlbum album
-
-// 	if err := ctx.BindJSON(&newAlbum); err != nil {
-// 		ctx.IndentedJSON(http.StatusCreated, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	// Add the new album to the slice.
-// 	albums = append(albums, newAlbum)
-// 	fmt.Println(albums)
-
-// 	ctx.IndentedJSON(http.StatusCreated, albums)
-// }
-
 func (c *classController) updateClass(ctx *gin.Context) {
-	fmt.Println("lahiru test 4")
-	body, err := network.ReqBody(ctx, class.EmptyUpdateClassDto())
+	dto, err := network.ReqBody(ctx, class.EmptyUpdateClassDto())
 
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, err)
 		return
 	}
 
-	updateClass, err2 := domain.NewClass(body.Name, body.Subject)
+	updateClass, err2 := domain.NewClass(dto.Name, dto.Subject)
 
 	if err2 != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, err2)
 		return
 	}
 
-	msg, err2 := c.service.UpdateClassService(updateClass)
+	err3 := c.service.UpdateClassService(updateClass)
 
-	if err2 != nil {
-		ctx.IndentedJSON(http.StatusInternalServerError, err)
+	if err3 != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
 
-	ctx.IndentedJSON(http.StatusOK, msg)
-
-	// mongoId, err := network.ReqParams(ctx, coredto.EmptyMongoId())
-	// if err != nil {
-	// 	c.Send(ctx).BadRequestError(err.Error(), err)
-	// 	return
-	// }
-
-	// data, err := c.service.GetUserPublicProfile(mongoId.ID)
-	// if err != nil {
-	// 	c.Send(ctx).MixedError(err)
-	// 	return
-	// }
-
-	// c.Send(ctx).SuccessDataResponse("success", data)
+	ctx.JSON(http.StatusOK, gin.H{"message": "Successfully updated"})
 }
 
 func (c *classController) deleteClass(ctx *gin.Context) {
-	name := ctx.Param("name")
-	fmt.Println("lahiru test 9", name)
-	d, err := network.ReqParams(ctx, class.EmptyGetClassReqDto())
+
+	dto, err := network.ReqParams(ctx, class.EmptyGetClassReqDto())
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, err)
 		return
 	}
-	fmt.Println("lahiru test 10", d)
-	_, err2 := c.service.DeleteClassByNameService(d.Name)
+
+	err2 := c.service.DeleteClassByNameService(dto.Name)
 	if err2 != nil {
-		ctx.IndentedJSON(http.StatusInternalServerError, err2)
+		if errors.Is(err2, repository.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Class is not found"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
-	ctx.IndentedJSON(200, "Successfully deleted")
+	ctx.JSON(http.StatusOK, gin.H{"message": "Successfully deleted"})
 
 }
 
@@ -183,7 +166,7 @@ func (c *classController) assignTeacher(ctx *gin.Context) {
 	body, err := network.ReqBody(ctx, class.EmptyAssignTeacherToClassDto())
 
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
@@ -192,20 +175,20 @@ func (c *classController) assignTeacher(ctx *gin.Context) {
 	if err2 != nil {
 
 		if errors.Is(err2, repository.ErrTeacherAlreadyAssigned) {
-			ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Teacher is already assigned in the class"})
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Teacher is already assigned in the class"})
 			return
 		}
-		ctx.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Assignment failed"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Assignment failed"})
 		return
 	}
 
-	ctx.IndentedJSON(http.StatusOK, gin.H{"message": "Assigned successfully"})
+	ctx.JSON(http.StatusOK, gin.H{"message": "Successfully assigned"})
 }
 
 func (c *classController) unAssignTeacher(ctx *gin.Context) {
 	body, err := network.ReqBody(ctx, class.EmptyAssignTeacherToClassDto())
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
@@ -214,13 +197,13 @@ func (c *classController) unAssignTeacher(ctx *gin.Context) {
 	if err2 != nil {
 
 		if errors.Is(err2, repository.ErrTeacherNotAssigned) {
-			ctx.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Teacher is not assigned in the class"})
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Teacher is not assigned in the class"})
 			return
 		}
-		ctx.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Un-assigned failed"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Un-assigned failed"})
 		return
 	}
 
-	ctx.IndentedJSON(http.StatusOK, gin.H{"message": "Un-assigned successfully"})
+	ctx.JSON(http.StatusOK, gin.H{"message": "Successfully unassigned"})
 
 }

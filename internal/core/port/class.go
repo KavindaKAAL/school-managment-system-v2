@@ -7,9 +7,9 @@ import (
 type ClassRepository interface {
 	GetAllClasses() ([]*domain.Class, error)
 	GetClassByName(name string) (*domain.Class, error)
-	CreateClass(class *domain.Class) (*domain.Class, error)
-	UpdateClass(class *domain.Class) (*domain.Class, error)
-	DeleteClassByName(name string) (bool, error)
+	CreateClass(class *domain.Class) error
+	UpdateClass(class *domain.Class) error
+	DeleteClassByName(name string) error
 	AssignTeacher(className string, teacherEmail string) error
 	UnAssignTeacher(className string, teacherEmail string) error
 }
@@ -17,9 +17,9 @@ type ClassRepository interface {
 type ClassService interface {
 	GetAllClassService() ([]*domain.Class, error)
 	GetClassByNameService(name string) (*domain.Class, error)
-	CreateClassService(class *domain.Class) (*domain.Class, error)
-	UpdateClassService(class *domain.Class) (*domain.Class, error)
-	DeleteClassByNameService(name string) (bool, error)
+	CreateClassService(class *domain.Class) error
+	UpdateClassService(class *domain.Class) error
+	DeleteClassByNameService(name string) error
 	AssignTeacherService(className string, teacherEmail string) error
 	UnAssignTeacherService(className string, teacherEmail string) error
 }

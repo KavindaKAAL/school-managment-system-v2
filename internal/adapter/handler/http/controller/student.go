@@ -43,7 +43,7 @@ func (c *studentController) getStudents(ctx *gin.Context) {
 	students, err := c.service.GetAllStudentService()
 
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "yet to handle"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Internel error"})
 		return
 	}
 	res := student.NewStudentsListResDto(students)
@@ -55,7 +55,7 @@ func (c *studentController) getStudentByEmail(ctx *gin.Context) {
 
 	dto, err := network.ReqParams(ctx, student.EmptyGetStudentReqDto())
 	if err != nil {
-		ctx.IndentedJSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request param"})
 		return
 	}
 
@@ -65,12 +65,12 @@ func (c *studentController) getStudentByEmail(ctx *gin.Context) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "Student is not found"})
 			return
 		}
-		ctx.IndentedJSON(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
 	res := student.NewStudentResDto(studentRes)
-	ctx.IndentedJSON(http.StatusOK, res)
+	ctx.JSON(http.StatusOK, res)
 
 }
 
@@ -120,21 +120,21 @@ func (c *studentController) updateStudent(ctx *gin.Context) {
 	dto, err := network.ReqBody(ctx, student.EmptyUpdateStudentDto())
 
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	updateStudent, err2 := domain.NewStudent(dto.Name, dto.Email)
 
 	if err2 != nil {
-		ctx.JSON(http.StatusBadRequest, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
 
-	_, err3 := c.service.UpdateStudentService(updateStudent)
+	err3 := c.service.UpdateStudentService(updateStudent)
 
 	if err3 != nil {
-		ctx.JSON(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
 
@@ -155,8 +155,11 @@ func (c *studentController) deleteStudent(ctx *gin.Context) {
 		if errors.Is(err2, repository.ErrUserNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "Student is not found"})
 			return
+		} else if errors.Is(err2, repository.ErrUserEnrolledToSomeClasses) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": "Cannot delete the student, is still enrolled to classes"})
+			return
 		}
-		ctx.JSON(http.StatusInternalServerError, err2)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internel error"})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Successfully deleted"})
