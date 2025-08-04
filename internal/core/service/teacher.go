@@ -32,12 +32,10 @@ func (s *TeacherService) CreateTeacherService(teacher *domain.Teacher) error {
 	return err
 }
 
-func (s *TeacherService) UpdateTeacherService(teacher *domain.Teacher) (*domain.Teacher, error) {
-	teacher, err := s.repo.UpdateTeacher(teacher)
-	return teacher, err
+func (s *TeacherService) UpdateTeacherService(teacher *domain.Teacher) error {
+	return s.repo.UpdateTeacher(teacher)
 }
 
-func (s *TeacherService) DeleteTeacherByEmailService(teacherEmail string) (bool, error) {
-	isSuccess, err := s.repo.DeleteTeacherByEmail(teacherEmail)
-	return isSuccess, err
+func (s *TeacherService) DeleteTeacherByEmailService(teacherEmail string) error {
+	return s.repo.DeleteTeacherByEmail(teacherEmail)
 }

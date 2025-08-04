@@ -29,7 +29,7 @@ func (s *StudentService) CreateStudentService(student *domain.Student) error {
 	return s.repo.CreateStudent(student)
 }
 
-func (s *StudentService) UpdateStudentService(student *domain.Student) (*domain.Student, error) {
+func (s *StudentService) UpdateStudentService(student *domain.Student) error {
 	return s.repo.UpdateStudent(student)
 }
 

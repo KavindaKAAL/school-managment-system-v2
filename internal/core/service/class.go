@@ -27,21 +27,19 @@ func (s *ClassService) GetClassByNameService(name string) (*domain.Class, error)
 	return class, err
 }
 
-func (s *ClassService) CreateClassService(class *domain.Class) (*domain.Class, error) {
-	class, err := s.repo.CreateClass(class)
-	return class, err
+func (s *ClassService) CreateClassService(class *domain.Class) error {
+	return s.repo.CreateClass(class)
+
 }
 
-func (s *ClassService) UpdateClassService(class *domain.Class) (*domain.Class, error) {
+func (s *ClassService) UpdateClassService(class *domain.Class) error {
 
-	class, err := s.repo.UpdateClass(class)
-	return class, err
+	return s.repo.UpdateClass(class)
 }
 
-func (s *ClassService) DeleteClassByNameService(className string) (bool, error) {
+func (s *ClassService) DeleteClassByNameService(className string) error {
 
-	isSuccess, err := s.repo.DeleteClassByName(className)
-	return isSuccess, err
+	return s.repo.DeleteClassByName(className)
 }
 
 func (s *ClassService) AssignTeacherService(className string, teacherEmail string) error {

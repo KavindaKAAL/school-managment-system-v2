@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -72,7 +73,7 @@ func TestIntegrationCreatetTeacher(t *testing.T) {
 		resp2, err2 := client.R().
 			SetHeader("Content-Type", "application/json").
 			SetBody(body2).
-			Post("http://localhost:8081/api/v1/students")
+			Post("http://localhost:8081/api/v1/teachers")
 
 		if err2 != nil {
 			t.Fatalf("Request failed: %v", err)
@@ -84,41 +85,150 @@ func TestIntegrationCreatetTeacher(t *testing.T) {
 	})
 }
 
-// func TestIntegrationGetStudentByEmail(t *testing.T) {
-// 	ts, router, module, teardown := startup.TestServer()
-// 	defer teardown()
+func TestIntegrationGetSpecificTeacher(t *testing.T) {
+	router, module, teardown := startup.TestServer()
+	go router.Start(module.GetInstance().Env.ServerHost, module.GetInstance().Env.ServerPort)
+	time.Sleep(1 * time.Second)
 
-// 	apikey, err := module.GetInstance().AuthService.CreateApiKey("test_key", 1, []model.Permission{"test"}, []string{"comment"})
-// 	if err != nil {
-// 		t.Fatalf("could not create apikey: %v", err)
-// 	}
+	defer teardown()
 
-// 	body := `{"email":"test@abc.com","password":"123456","name":"test name"}`
+	// create a tempory teacher correctly
+	createTemporaryTeacher(t)
 
-// 	req, err := http.NewRequest("POST", "/auth/signup/basic", bytes.NewBuffer([]byte(body)))
-// 	if err != nil {
-// 		t.Fatalf("could not create request: %v", err)
-// 	}
-// 	req.Header.Set("Content-Type", "application/json")
-// 	req.Header.Set(network.ApiKeyHeader, apikey.Key)
+	t.Run("It should return a message contains the teacher details", func(t *testing.T) {
+		defer utils.ClearDatabase(module.GetInstance().DB.GetInstance())
 
-// 	rr := httptest.NewRecorder()
-// 	router.GetEngine().ServeHTTP(rr, req)
+		client := resty.New()
+		client.SetRetryCount(5)
+		client.SetRetryWaitTime(2 * time.Second)
 
-// 	assert.Equal(t, http.StatusOK, rr.Code)
-// 	assert.Contains(t, rr.Body.String(), `"message":"success"`)
-// 	assert.Contains(t, rr.Body.String(), `"data"`)
-// 	assert.Contains(t, rr.Body.String(), `"user"`)
-// 	assert.Contains(t, rr.Body.String(), `"roles"`)
-// 	assert.Contains(t, rr.Body.String(), `"tokens"`)
+		param := "alice@gmail.com"
 
-// 	_, err = module.GetInstance().AuthService.DeleteApiKey(apikey)
-// 	if err != nil {
-// 		t.Fatalf("could not delete apikey: %v", err)
-// 	}
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/json").
+			SetBody(param).
+			Get(fmt.Sprintf("http://localhost:8081/api/v1/teachers/%s", param))
 
-// 	_, err = module.GetInstance().UserService.DeleteUserByEmail("test@abc.com")
-// 	if err != nil {
-// 		t.Fatalf("could not delete user: %v", err)
-// 	}
-// }
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+
+		assert.Equal(t, 200, resp.StatusCode())
+
+	})
+
+	t.Run("It should return an error message of teacher not found", func(t *testing.T) {
+		defer utils.ClearDatabase(module.GetInstance().DB.GetInstance())
+
+		client := resty.New()
+		client.SetRetryCount(5)
+		client.SetRetryWaitTime(2 * time.Second)
+
+		param := "alice@gmail.com"
+
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/json").
+			SetBody(param).
+			Get(fmt.Sprintf("http://localhost:8081/api/v1/teachers/%s", param))
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+
+		assert.Equal(t, 404, resp.StatusCode())
+		assert.Equal(t, "{\"error\":\"Teacher is not found\"}", resp.String())
+
+	})
+}
+
+func TestIntegrationUpdateTeacher(t *testing.T) {
+	router, module, teardown := startup.TestServer()
+	go router.Start(module.GetInstance().Env.ServerHost, module.GetInstance().Env.ServerPort)
+	time.Sleep(1 * time.Second)
+
+	defer teardown()
+
+	// create a tempory teacher correctly
+	createTemporaryTeacher(t)
+
+	t.Run("It should return a message contains successfully updated", func(t *testing.T) {
+		client := resty.New()
+		client.SetRetryCount(5)
+		client.SetRetryWaitTime(2 * time.Second)
+
+		body := map[string]interface{}{
+			"name":  "Anshan",
+			"email": "alice@gmail.com",
+		}
+
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/json").
+			SetBody(body).
+			Put("http://localhost:8081/api/v1/teachers")
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+
+		assert.Equal(t, 200, resp.StatusCode())
+		assert.Equal(t, "{\"message\":\"Successfully updated\"}", resp.String())
+	})
+}
+
+func TestIntegrationDeleteTeacher(t *testing.T) {
+	router, module, teardown := startup.TestServer()
+	go router.Start(module.GetInstance().Env.ServerHost, module.GetInstance().Env.ServerPort)
+	time.Sleep(1 * time.Second)
+
+	defer teardown()
+
+	// create a tempory teacher correctly
+	createTemporaryTeacher(t)
+
+	t.Run("It should return a successfully deleted message", func(t *testing.T) {
+		defer utils.ClearDatabase(module.GetInstance().DB.GetInstance())
+
+		client := resty.New()
+		client.SetRetryCount(5)
+		client.SetRetryWaitTime(2 * time.Second)
+
+		param := "alice@gmail.com"
+
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/json").
+			SetBody(param).
+			Delete(fmt.Sprintf("http://localhost:8081/api/v1/teachers/%s", param))
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+
+		assert.Equal(t, 200, resp.StatusCode())
+		assert.Equal(t, "{\"message\":\"Successfully deleted\"}", resp.String())
+
+	})
+
+	t.Run("It should return an error message as student is not found", func(t *testing.T) {
+		defer utils.ClearDatabase(module.GetInstance().DB.GetInstance())
+
+		client := resty.New()
+		client.SetRetryCount(5)
+		client.SetRetryWaitTime(2 * time.Second)
+
+		param := "alice@gmail.com"
+
+		resp, err := client.R().
+			SetHeader("Content-Type", "application/json").
+			SetBody(param).
+			Delete(fmt.Sprintf("http://localhost:8081/api/v1/teachers/%s", param))
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+
+		assert.Equal(t, 404, resp.StatusCode())
+		assert.Equal(t, "{\"error\":\"Teacher is not found\"}", resp.String())
+
+	})
+
+}
